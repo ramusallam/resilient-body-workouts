@@ -20,25 +20,25 @@
           serif: ['"Cormorant Garamond"', 'Kepler', 'Georgia', 'serif'],
         },
         colors: {
-          ink: '#0a0a0a',
-          coal: '#1a1a1a',
-          char: '#2a2a2a',
-          line: '#e6e6e6',
-          muted: '#6b6b6b',
-          paper: '#ffffff',
+          ink: '#000000',
+          coal: '#0e0e0e',
+          char: '#161616',
+          line: '#2a2a2a',
+          muted: '#a0a0a0',
+          paper: '#f4f3ef',
           teal: '#218496',
-          tealSoft: '#2aa0b4',
+          tealSoft: '#3aafc2',
         },
       },
     },
   };
 </script>
 <style>
-  html, body { background: #ffffff; color: #0a0a0a; }
+  html, body { background: #0e0e0e; color: #f4f3ef; }
   body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
   .display { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 300; letter-spacing: -0.005em; }
-  .eyebrow { letter-spacing: 0.34em; text-transform: uppercase; font-weight: 400; font-size: 0.68rem; }
-  .hairline { border-color: #e6e6e6; }
+  .eyebrow { letter-spacing: 0.34em; text-transform: uppercase; font-weight: 400; font-size: 0.72rem; }
+  .hairline { border-color: #2a2a2a; }
   .scroll-x { scrollbar-width: none; }
   .scroll-x::-webkit-scrollbar { display: none; }
   .live-dot {
@@ -62,7 +62,7 @@
 <body class="min-h-screen">
 
 <!-- Brand hero band -->
-<div class="bg-ink">
+<div class="border-b hairline">
   <div class="max-w-[1400px] mx-auto px-8 lg:px-14 py-7 flex items-center justify-between">
     <a href="https://www.resilientbody.us/" target="_blank" rel="noopener" class="flex items-center gap-5">
       <img src="https://images.squarespace-cdn.com/content/v1/5fdcfb6c60f802052c68ecca/68c84c43-5fc9-42e0-bacc-25f22d102342/Resilient_Body_Branding_Stacked_Logo_White.png?format=300w"
@@ -246,7 +246,7 @@ function renderSheetNav() {
   sheets.forEach(s => {
     const btn = el('button',
       'shrink-0 pb-3 pt-1 text-xs eyebrow tab-underline transition ' +
-      (s.gid === activeGid ? 'text-ink active' : 'text-muted hover:text-ink'),
+      (s.gid === activeGid ? 'text-paper active' : 'text-muted hover:text-paper'),
       s.name
     );
     btn.onclick = () => {
@@ -270,8 +270,8 @@ function renderDateNav() {
     const btn = el('button',
       'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
       (i === activeWorkoutIdx
-        ? 'bg-ink text-paper border-ink'
-        : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
+        ? 'bg-paper text-ink border-paper'
+        : 'bg-transparent text-muted border-line hover:text-paper hover:border-paper/40'),
       w.date || '—'
     );
     btn.onclick = () => { activeWorkoutIdx = i; render(); };
@@ -281,7 +281,7 @@ function renderDateNav() {
 
 function renderSectionHeader(title, subtitle) {
   const wrap = el('div', 'mb-5');
-  wrap.appendChild(el('div', 'eyebrow text-teal mb-1', title));
+  wrap.appendChild(el('div', 'eyebrow text-tealSoft mb-1', title));
   if (subtitle) wrap.appendChild(el('div', 'text-muted text-xs font-light tracking-wide', subtitle));
   return wrap;
 }
@@ -291,9 +291,9 @@ function renderListSection(sec) {
   if (sec.title) wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
   const list = el('ul', 'border-t hairline');
   sec.rows.forEach((r, idx) => {
-    const li = el('li', 'flex items-baseline gap-4 py-3 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
-    li.appendChild(el('span', 'text-teal text-xs', '◆'));
-    li.appendChild(el('span', 'display text-xl md:text-2xl text-ink leading-snug', r.name));
+    const li = el('li', 'flex items-baseline gap-4 py-3.5 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
+    li.appendChild(el('span', 'text-tealSoft text-xs', '◆'));
+    li.appendChild(el('span', 'display text-xl md:text-2xl text-paper leading-snug', r.name));
     list.appendChild(li);
   });
   wrap.appendChild(list);
@@ -312,17 +312,17 @@ function renderStrengthSection(sec) {
     const head = el('div', 'grid items-end gap-6 py-4 border-b hairline');
     head.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
     head.appendChild(el('div', 'eyebrow text-muted', 'Movement'));
-    clients.forEach(c => head.appendChild(el('div', 'eyebrow text-ink', c)));
+    clients.forEach(c => head.appendChild(el('div', 'eyebrow text-paper', c)));
     grid.appendChild(head);
   }
 
   sec.rows.forEach((r, idx) => {
-    const row = el('div', 'grid items-baseline gap-6 py-3.5 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
+    const row = el('div', 'grid items-baseline gap-6 py-4 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
     row.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
-    row.appendChild(el('div', 'display text-xl md:text-2xl text-ink leading-snug', r.name));
+    row.appendChild(el('div', 'display text-xl md:text-2xl text-paper leading-snug', r.name));
     for (let i = 0; i < colCount; i++) {
       const note = (r.notes[i] || '').trim();
-      const cell = el('div', 'text-ink/80 text-sm font-light leading-snug whitespace-pre-line');
+      const cell = el('div', 'text-paper/90 text-sm font-light leading-snug whitespace-pre-line');
       if (note) cell.textContent = note;
       else cell.appendChild(el('span', 'text-muted/40', '—'));
       row.appendChild(cell);
@@ -335,9 +335,9 @@ function renderStrengthSection(sec) {
 }
 
 function renderFinisher(sec) {
-  const wrap = el('section', 'mt-12 mb-8 rounded-xl border border-teal/40 bg-teal/5 p-7 text-center');
-  wrap.appendChild(el('div', 'eyebrow text-teal mb-3', 'Finisher'));
-  wrap.appendChild(el('div', 'display text-2xl md:text-3xl text-ink leading-snug', sec.body || ''));
+  const wrap = el('section', 'mt-12 mb-8 rounded-xl border border-teal/50 bg-teal/10 p-7 text-center');
+  wrap.appendChild(el('div', 'eyebrow text-tealSoft mb-3', 'Finisher'));
+  wrap.appendChild(el('div', 'display text-2xl md:text-3xl text-paper leading-snug', sec.body || ''));
   return wrap;
 }
 
@@ -362,7 +362,7 @@ function render() {
   const activeSheet = sheets.find(s => s.gid === activeGid);
   const title = el('div', 'mb-10');
   if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-2', w.day));
-  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-ink leading-none', w.date || (activeSheet ? activeSheet.name : '')));
+  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-paper leading-none', w.date || (activeSheet ? activeSheet.name : '')));
   root.appendChild(title);
 
   w.sections.forEach(sec => {
