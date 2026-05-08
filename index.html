@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
   tailwind.config = {
     theme: {
@@ -47,15 +48,19 @@
     70% { box-shadow: 0 0 0 9px rgba(33, 132, 150, 0); }
     100% { box-shadow: 0 0 0 0 rgba(33, 132, 150, 0); }
   }
-  .fade-in { animation: fade 0.35s ease-out; }
-  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .fade-in { animation: fade 0.3s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .tab-underline { position: relative; }
+  .tab-underline.active::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: #218496;
+  }
 </style>
 </head>
 <body class="min-h-screen">
 
 <div id="app" class="max-w-[1400px] mx-auto px-8 lg:px-14 py-10">
-  <!-- Header -->
-  <header class="flex items-center justify-between mb-12">
+  <header class="flex items-center justify-between mb-10">
     <div class="flex items-center gap-3">
       <div class="w-1.5 h-1.5 rounded-full bg-ink"></div>
       <div class="eyebrow text-ink">Resilient Body</div>
@@ -66,16 +71,14 @@
     </div>
   </header>
 
-  <!-- Date pills -->
-  <nav id="date-nav" class="flex gap-2 overflow-x-auto scroll-x mb-6 pb-1"></nav>
+  <!-- Sheet tabs (sessions) -->
+  <nav id="sheet-nav" class="flex gap-7 overflow-x-auto scroll-x mb-8 border-b hairline"></nav>
 
-  <!-- Session tabs -->
-  <nav id="session-nav" class="flex gap-2 overflow-x-auto scroll-x mb-10 pb-1"></nav>
+  <!-- Date pills within current sheet -->
+  <nav id="date-nav" class="flex gap-2 overflow-x-auto scroll-x mb-10 pb-1"></nav>
 
-  <!-- Main content -->
   <main id="content" class="fade-in"></main>
 
-  <!-- Footer -->
   <footer class="mt-24 pt-8 border-t hairline flex items-center justify-between text-muted text-xs">
     <span class="eyebrow">Resilient Body · 2025</span>
     <span id="last-updated"></span>
@@ -84,15 +87,33 @@
 
 <script>
 const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
-const REFRESH_MS = 5000;
+const SHEET_REFRESH_MS = 5000;     // refresh active sheet's data
+const TAB_REFRESH_MS = 60000;      // re-discover sheet list
 
-let activeIndex = 0;
-let activeSession = null;
+let sheetNames = [];
+let activeSheet = null;
+let activeWorkoutIdx = 0;
 let workouts = [];
 let lastSig = null;
 
-async function fetchSheet() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&_=${Date.now()}`;
+// ---------- DISCOVERY: list of sheet tabs from xlsx export ----------
+async function fetchSheetList() {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx&_=${Date.now()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('xlsx fetch failed');
+  const buf = await res.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const xml = await zip.file('xl/workbook.xml').async('string');
+  const names = [];
+  const re = /<sheet [^/]*name="([^"]+)"/g;
+  let m;
+  while ((m = re.exec(xml))) names.push(m[1]);
+  return names;
+}
+
+// ---------- DATA: gviz fetch for a single sheet by name ----------
+async function fetchSheetData(name) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}&_=${Date.now()}`;
   const res = await fetch(url);
   const text = await res.text();
   const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
@@ -114,35 +135,18 @@ function rowsFromData(data) {
   return out;
 }
 
+// ---------- PARSE: workouts from rows ----------
 const DATE_RE = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
 const DAY_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i;
 const SECTION_RE = /^(WARM[-\s]?UP|STRENGTH BLOCK|CONDITIONING|MOBILITY|COOL[-\s]?DOWN|CORE|ACCESSORY|MAIN|SECONDARY)\b/i;
 const FINISHER_RE = /^FINISHER\b/i;
-const SESSION_TAG_RE = /\(\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*\)/i;
-
-function parseClientName(raw) {
-  if (!raw) return { name: '', session: null };
-  const m = raw.match(SESSION_TAG_RE);
-  if (m) {
-    const session = m[1].replace(/\s+/g, '').toLowerCase();
-    const name = raw.replace(SESSION_TAG_RE, '').trim();
-    return { name, session };
-  }
-  return { name: raw, session: null };
-}
 
 function parseWorkouts(rows) {
   const workouts = [];
   let cur = null;
 
   function commitSection(w) {
-    if (w._section) {
-      if (w._section.type === 'strength' && w._section.clients) {
-        w._section.clients = w._section.clients.map(parseClientName);
-      }
-      w.sections.push(w._section);
-      w._section = null;
-    }
+    if (w._section) { w.sections.push(w._section); w._section = null; }
   }
   function commit() {
     if (cur) { commitSection(cur); workouts.push(cur); cur = null; }
@@ -159,9 +163,7 @@ function parseWorkouts(rows) {
       continue;
     }
 
-    if (!cur) {
-      cur = { date: '', day: '', sections: [], _section: null };
-    }
+    if (!cur) cur = { date: '', day: '', sections: [], _section: null };
 
     if (!cur.day && (DAY_RE.test(a) || a.includes('—') || a.includes('–'))) {
       cur.day = a;
@@ -183,10 +185,7 @@ function parseWorkouts(rows) {
       const subtitle = (m && m[2] ? m[2] : '').trim();
       cur._section = {
         type: SECTION_RE.test(a) && /STRENGTH|MAIN|ACCESSORY|SECONDARY/i.test(title) ? 'strength' : 'list',
-        title,
-        subtitle,
-        clients: null,
-        rows: [],
+        title, subtitle, clients: null, rows: [],
       };
       continue;
     }
@@ -200,25 +199,13 @@ function parseWorkouts(rows) {
       sec.clients = row.slice(1).map(c => c.trim());
       continue;
     }
-
     sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
   }
   commit();
   return workouts.filter(w => w.sections.length || w.day);
 }
 
-function sessionsFromWorkout(w) {
-  const set = new Set();
-  for (const sec of w.sections) {
-    if (sec.type === 'strength' && sec.clients) {
-      for (const c of sec.clients) {
-        if (c.session) set.add(c.session);
-      }
-    }
-  }
-  return Array.from(set);
-}
-
+// ---------- RENDER ----------
 function el(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -226,46 +213,41 @@ function el(tag, cls, text) {
   return e;
 }
 
-function renderDateNav() {
-  const nav = document.getElementById('date-nav');
+function renderSheetNav() {
+  const nav = document.getElementById('sheet-nav');
   nav.innerHTML = '';
-  workouts.forEach((w, i) => {
+  sheetNames.forEach(name => {
     const btn = el('button',
-      'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
-      (i === activeIndex
-        ? 'bg-ink text-paper border-ink'
-        : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
-      w.date || '—'
+      'shrink-0 pb-3 pt-1 text-xs eyebrow tab-underline transition ' +
+      (name === activeSheet ? 'text-ink active' : 'text-muted hover:text-ink'),
+      name
     );
-    btn.onclick = () => { activeIndex = i; activeSession = null; render(); };
+    btn.onclick = () => {
+      if (activeSheet === name) return;
+      activeSheet = name;
+      activeWorkoutIdx = 0;
+      lastSig = null;
+      workouts = [];
+      render();
+      tickData();
+    };
     nav.appendChild(btn);
   });
 }
 
-function renderSessionNav(sessions) {
-  const nav = document.getElementById('session-nav');
+function renderDateNav() {
+  const nav = document.getElementById('date-nav');
   nav.innerHTML = '';
-  if (sessions.length === 0) return;
-
-  const all = el('button',
-    'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
-    (activeSession === null
-      ? 'bg-teal text-paper border-teal'
-      : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
-    'All Sessions'
-  );
-  all.onclick = () => { activeSession = null; render(); };
-  nav.appendChild(all);
-
-  sessions.forEach(s => {
+  if (workouts.length <= 1) return;
+  workouts.forEach((w, i) => {
     const btn = el('button',
       'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
-      (activeSession === s
-        ? 'bg-teal text-paper border-teal'
+      (i === activeWorkoutIdx
+        ? 'bg-ink text-paper border-ink'
         : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
-      s
+      w.date || '—'
     );
-    btn.onclick = () => { activeSession = s; render(); };
+    btn.onclick = () => { activeWorkoutIdx = i; render(); };
     nav.appendChild(btn);
   });
 }
@@ -273,9 +255,7 @@ function renderSessionNav(sessions) {
 function renderSectionHeader(title, subtitle) {
   const wrap = el('div', 'mb-5');
   wrap.appendChild(el('div', 'eyebrow text-teal mb-1', title));
-  if (subtitle) {
-    wrap.appendChild(el('div', 'text-muted text-xs font-light tracking-wide', subtitle));
-  }
+  if (subtitle) wrap.appendChild(el('div', 'text-muted text-xs font-light tracking-wide', subtitle));
   return wrap;
 }
 
@@ -285,9 +265,8 @@ function renderListSection(sec) {
   const list = el('ul', 'border-t hairline');
   sec.rows.forEach((r, idx) => {
     const li = el('li', 'flex items-baseline gap-4 py-3 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
-    const dot = el('span', 'text-teal text-xs', '◆');
-    const name = el('span', 'display text-xl md:text-2xl text-ink leading-snug', r.name);
-    li.appendChild(dot); li.appendChild(name);
+    li.appendChild(el('span', 'text-teal text-xs', '◆'));
+    li.appendChild(el('span', 'display text-xl md:text-2xl text-ink leading-snug', r.name));
     list.appendChild(li);
   });
   wrap.appendChild(list);
@@ -295,34 +274,18 @@ function renderListSection(sec) {
 }
 
 function renderStrengthSection(sec) {
-  const wrap = el('section', 'mb-16');
+  const wrap = el('section', 'mb-12');
   wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
 
-  const allClients = sec.clients || [];
-  const visibleIdx = allClients
-    .map((c, i) => ({ c, i }))
-    .filter(({ c }) => activeSession === null || c.session === activeSession);
-  const visibleClients = visibleIdx.map(v => v.c);
-
-  if (visibleClients.length === 0 && allClients.length > 0) {
-    const empty = el('div', 'border-t hairline pt-8 text-muted text-sm', 'No clients in this session for this block.');
-    wrap.appendChild(empty);
-    return wrap;
-  }
-
+  const clients = sec.clients || [];
   const grid = el('div', 'border-t hairline');
-  const colCount = Math.max(visibleClients.length, 1);
+  const colCount = Math.max(clients.length, 1);
 
-  if (visibleClients.length) {
+  if (clients.length) {
     const head = el('div', 'grid items-end gap-6 py-4 border-b hairline');
     head.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
     head.appendChild(el('div', 'eyebrow text-muted', 'Movement'));
-    visibleClients.forEach(c => {
-      const cell = el('div', '');
-      cell.appendChild(el('div', 'eyebrow text-ink', c.name));
-      if (c.session) cell.appendChild(el('div', 'text-teal text-[10px] tracking-widest mt-1', c.session));
-      head.appendChild(cell);
-    });
+    clients.forEach(c => head.appendChild(el('div', 'eyebrow text-ink', c)));
     grid.appendChild(head);
   }
 
@@ -330,18 +293,13 @@ function renderStrengthSection(sec) {
     const row = el('div', 'grid items-baseline gap-6 py-3.5 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
     row.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
     row.appendChild(el('div', 'display text-xl md:text-2xl text-ink leading-snug', r.name));
-
-    const indices = visibleIdx.length ? visibleIdx.map(v => v.i) : [...Array(Math.max(r.notes.length, 1)).keys()];
-    indices.forEach(i => {
+    for (let i = 0; i < colCount; i++) {
       const note = (r.notes[i] || '').trim();
       const cell = el('div', 'text-ink/80 text-sm font-light leading-snug whitespace-pre-line');
-      if (note) {
-        cell.textContent = note;
-      } else {
-        cell.appendChild(el('span', 'text-muted/40', '—'));
-      }
+      if (note) cell.textContent = note;
+      else cell.appendChild(el('span', 'text-muted/40', '—'));
       row.appendChild(cell);
-    });
+    }
     grid.appendChild(row);
   });
 
@@ -357,25 +315,26 @@ function renderFinisher(sec) {
 }
 
 function render() {
+  renderSheetNav();
   renderDateNav();
   const root = document.getElementById('content');
   root.innerHTML = '';
   root.classList.remove('fade-in'); void root.offsetWidth; root.classList.add('fade-in');
 
-  const w = workouts[activeIndex];
-  if (!w) {
-    document.getElementById('session-nav').innerHTML = '';
-    root.appendChild(el('div', 'text-muted py-16 text-center', 'Loading…'));
+  if (!activeSheet) {
+    root.appendChild(el('div', 'text-muted py-16 text-center text-sm', 'Loading sessions…'));
     return;
   }
 
-  const sessions = sessionsFromWorkout(w);
-  if (activeSession && !sessions.includes(activeSession)) activeSession = null;
-  renderSessionNav(sessions);
+  const w = workouts[activeWorkoutIdx];
+  if (!w) {
+    root.appendChild(el('div', 'text-muted py-16 text-center text-sm', 'Loading workout…'));
+    return;
+  }
 
   const title = el('div', 'mb-10');
   if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-2', w.day));
-  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-ink leading-none', w.date || ''));
+  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-ink leading-none', w.date || activeSheet));
   root.appendChild(title);
 
   w.sections.forEach(sec => {
@@ -388,26 +347,49 @@ function render() {
     'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-async function tick() {
+// ---------- TICKS ----------
+async function tickData() {
+  if (!activeSheet) return;
   try {
-    const data = await fetchSheet();
+    const data = await fetchSheetData(activeSheet);
     const sig = data.sig || JSON.stringify(data.table.rows).length;
     if (sig !== lastSig) {
       lastSig = sig;
       const rows = rowsFromData(data);
       workouts = parseWorkouts(rows);
-      if (activeIndex >= workouts.length) activeIndex = 0;
+      if (activeWorkoutIdx >= workouts.length) activeWorkoutIdx = 0;
       render();
     }
     document.getElementById('status').textContent = 'Live';
   } catch (e) {
-    console.error(e);
+    console.error('tickData', e);
     document.getElementById('status').textContent = 'Reconnecting';
   }
 }
 
-tick();
-setInterval(tick, REFRESH_MS);
+async function tickTabs() {
+  try {
+    const names = await fetchSheetList();
+    const changed = JSON.stringify(names) !== JSON.stringify(sheetNames);
+    sheetNames = names;
+    if (!activeSheet || !sheetNames.includes(activeSheet)) {
+      activeSheet = sheetNames[0] || null;
+      activeWorkoutIdx = 0;
+      lastSig = null;
+      workouts = [];
+    }
+    if (changed) render();
+  } catch (e) {
+    console.error('tickTabs', e);
+  }
+}
+
+(async () => {
+  await tickTabs();
+  await tickData();
+  setInterval(tickData, SHEET_REFRESH_MS);
+  setInterval(tickTabs, TAB_REFRESH_MS);
+})();
 </script>
 </body>
 </html>
