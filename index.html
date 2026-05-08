@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resilient Body — Workout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bodoni+Moda:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          serif: ['"Bodoni Moda"', 'Georgia', 'serif'],
+        },
+        colors: {
+          ink: '#0a0a0a',
+          coal: '#141414',
+          char: '#1c1c1c',
+          line: '#2a2a2a',
+          ash: '#7a7a7a',
+          cream: '#f5f1ea',
+          gold: '#c9a55c',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html, body { background: #0a0a0a; color: #f5f1ea; }
+  body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .display { font-family: 'Bodoni Moda', Georgia, serif; letter-spacing: -0.01em; }
+  .eyebrow { letter-spacing: 0.32em; text-transform: uppercase; font-weight: 500; font-size: 0.7rem; }
+  .hairline { border-color: #2a2a2a; }
+  .scroll-x { scrollbar-width: none; }
+  .scroll-x::-webkit-scrollbar { display: none; }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 999px; background: #4ade80;
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
+    70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+  }
+  .fade-in { animation: fade 0.35s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div id="app" class="max-w-[1400px] mx-auto px-8 lg:px-14 py-10">
+  <!-- Header -->
+  <header class="flex items-center justify-between mb-12">
+    <div class="flex items-center gap-3">
+      <div class="w-2 h-2 rounded-full bg-cream/80"></div>
+      <div class="eyebrow text-cream/70">Resilient Body</div>
+    </div>
+    <div class="flex items-center gap-3 text-ash text-xs">
+      <span class="live-dot"></span>
+      <span class="eyebrow" id="status">Live</span>
+    </div>
+  </header>
+
+  <!-- Date pills -->
+  <nav id="date-nav" class="flex gap-2 overflow-x-auto scroll-x mb-10 pb-1"></nav>
+
+  <!-- Main content -->
+  <main id="content" class="fade-in"></main>
+
+  <!-- Footer -->
+  <footer class="mt-24 pt-8 border-t hairline flex items-center justify-between text-ash text-xs">
+    <span class="eyebrow">Resilient Body · 2025</span>
+    <span id="last-updated"></span>
+  </footer>
+</div>
+
+<script>
+const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
+const REFRESH_MS = 5000;
+
+let activeIndex = 0;
+let workouts = [];
+let lastSig = null;
+
+async function fetchSheet() {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&_=${Date.now()}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
+  if (!match) throw new Error('Bad gviz response');
+  return JSON.parse(match[1]);
+}
+
+function rowsFromData(data) {
+  const out = [];
+  for (const r of (data.table.rows || [])) {
+    const cells = (r.c || []).map(c => {
+      if (!c) return '';
+      const v = c.f != null ? c.f : (c.v != null ? c.v : '');
+      return String(v).trim();
+    });
+    while (cells.length && cells[cells.length - 1] === '') cells.pop();
+    out.push(cells);
+  }
+  return out;
+}
+
+const DATE_RE = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
+const DAY_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i;
+const SECTION_RE = /^(WARM[-\s]?UP|STRENGTH BLOCK|CONDITIONING|MOBILITY|COOL[-\s]?DOWN|CORE|ACCESSORY|MAIN|SECONDARY)\b/i;
+const FINISHER_RE = /^FINISHER\b/i;
+
+function parseWorkouts(rows) {
+  const workouts = [];
+  let cur = null;
+
+  function commitSection(w) {
+    if (w._section) {
+      w.sections.push(w._section);
+      w._section = null;
+    }
+  }
+  function commit() {
+    if (cur) { commitSection(cur); workouts.push(cur); cur = null; }
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const a = (row[0] || '').trim();
+    if (!a && row.every(c => !c)) continue;
+
+    if (DATE_RE.test(a)) {
+      commit();
+      cur = { date: a, day: '', sections: [], _section: null };
+      continue;
+    }
+
+    if (!cur) {
+      cur = { date: '', day: '', sections: [], _section: null };
+    }
+
+    if (!cur.day && (DAY_RE.test(a) || a.includes('—') || a.includes('–'))) {
+      cur.day = a;
+      continue;
+    }
+
+    if (FINISHER_RE.test(a)) {
+      commitSection(cur);
+      const text = a.replace(/^FINISHER\s*[:\-—]?\s*/i, '').trim();
+      cur._section = { type: 'finisher', title: 'Finisher', body: text };
+      commitSection(cur);
+      continue;
+    }
+
+    if (SECTION_RE.test(a) || (a === a.toUpperCase() && a.length > 3 && row.slice(1).every(c => !c))) {
+      commitSection(cur);
+      const m = a.match(/^([A-Z][A-Z\s\-]+?)(?:\s*[—–\-]\s*(.+))?$/);
+      const title = (m && m[1] ? m[1] : a).trim();
+      const subtitle = (m && m[2] ? m[2] : '').trim();
+      cur._section = {
+        type: SECTION_RE.test(a) && /STRENGTH|MAIN|ACCESSORY|SECONDARY/i.test(title) ? 'strength' : 'list',
+        title,
+        subtitle,
+        clients: null,
+        rows: [],
+      };
+      continue;
+    }
+
+    if (!cur._section) {
+      cur._section = { type: 'list', title: '', subtitle: '', clients: null, rows: [] };
+    }
+
+    const sec = cur._section;
+    if (sec.type === 'strength' && sec.clients == null && !a && row.slice(1).some(c => c)) {
+      sec.clients = row.slice(1).map(c => c.trim());
+      continue;
+    }
+
+    if (sec.type === 'strength') {
+      sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
+    } else {
+      sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
+    }
+  }
+  commit();
+  return workouts.filter(w => w.sections.length || w.day);
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function renderDateNav() {
+  const nav = document.getElementById('date-nav');
+  nav.innerHTML = '';
+  workouts.forEach((w, i) => {
+    const btn = el('button',
+      'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
+      (i === activeIndex
+        ? 'bg-cream text-ink border-cream'
+        : 'bg-transparent text-ash border-line hover:text-cream hover:border-cream/50'),
+      w.date || '—'
+    );
+    btn.onclick = () => { activeIndex = i; render(); };
+    nav.appendChild(btn);
+  });
+}
+
+function renderSectionHeader(title, subtitle) {
+  const wrap = el('div', 'mb-8');
+  wrap.appendChild(el('div', 'eyebrow text-gold mb-2', title));
+  if (subtitle) {
+    wrap.appendChild(el('div', 'text-ash text-sm font-light tracking-wide', subtitle));
+  }
+  return wrap;
+}
+
+function renderListSection(sec) {
+  const wrap = el('section', 'mb-16');
+  if (sec.title) wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
+  const list = el('ul', 'space-y-3 border-t hairline pt-6');
+  sec.rows.forEach(r => {
+    const li = el('li', 'flex items-baseline gap-4');
+    const dot = el('span', 'text-gold/60 text-xs mt-1', '◆');
+    const name = el('span', 'display text-2xl md:text-3xl font-light text-cream', r.name);
+    li.appendChild(dot); li.appendChild(name);
+    list.appendChild(li);
+  });
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function renderStrengthSection(sec) {
+  const wrap = el('section', 'mb-16');
+  wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
+
+  const clients = sec.clients || [];
+  const grid = el('div', 'border-t hairline');
+
+  // Header row
+  const head = el('div', 'grid items-end gap-6 py-5 border-b hairline');
+  head.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${clients.length || 1}, minmax(140px, 1fr))`;
+  head.appendChild(el('div', 'eyebrow text-ash', 'Movement'));
+  clients.forEach(c => {
+    head.appendChild(el('div', 'eyebrow text-cream', c));
+  });
+  if (clients.length) grid.appendChild(head);
+
+  // Rows
+  sec.rows.forEach((r, idx) => {
+    const row = el('div', 'grid items-baseline gap-6 py-6 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
+    row.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${Math.max(clients.length, 1)}, minmax(140px, 1fr))`;
+    row.appendChild(el('div', 'display text-2xl md:text-3xl font-light text-cream leading-tight', r.name));
+    const colCount = Math.max(clients.length, r.notes.length);
+    for (let i = 0; i < colCount; i++) {
+      const note = (r.notes[i] || '').trim();
+      const cell = el('div', 'text-cream/85 text-base font-light leading-snug whitespace-pre-line');
+      if (note) {
+        cell.textContent = note;
+      } else {
+        const dash = el('span', 'text-ash/40', '—');
+        cell.appendChild(dash);
+      }
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  });
+
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function renderFinisher(sec) {
+  const wrap = el('section', 'mt-20 mb-8 rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/10 to-transparent p-10 text-center');
+  wrap.appendChild(el('div', 'eyebrow text-gold mb-4', 'Finisher'));
+  wrap.appendChild(el('div', 'display text-3xl md:text-4xl font-light text-cream leading-tight', sec.body || ''));
+  return wrap;
+}
+
+function render() {
+  renderDateNav();
+  const root = document.getElementById('content');
+  root.innerHTML = '';
+  root.classList.remove('fade-in'); void root.offsetWidth; root.classList.add('fade-in');
+
+  const w = workouts[activeIndex];
+  if (!w) {
+    root.appendChild(el('div', 'text-ash py-16 text-center', 'Loading…'));
+    return;
+  }
+
+  // Title block
+  const title = el('div', 'mb-14');
+  if (w.day) title.appendChild(el('div', 'eyebrow text-ash mb-3', w.day));
+  title.appendChild(el('h1', 'display text-6xl md:text-7xl font-light text-cream leading-none', w.date || ''));
+  root.appendChild(title);
+
+  w.sections.forEach(sec => {
+    if (sec.type === 'finisher') root.appendChild(renderFinisher(sec));
+    else if (sec.type === 'strength') root.appendChild(renderStrengthSection(sec));
+    else root.appendChild(renderListSection(sec));
+  });
+
+  document.getElementById('last-updated').textContent =
+    'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+async function tick() {
+  try {
+    const data = await fetchSheet();
+    const sig = data.sig || JSON.stringify(data.table.rows).length;
+    if (sig !== lastSig) {
+      lastSig = sig;
+      const rows = rowsFromData(data);
+      workouts = parseWorkouts(rows);
+      if (activeIndex >= workouts.length) activeIndex = 0;
+      render();
+    }
+    document.getElementById('status').textContent = 'Live';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('status').textContent = 'Reconnecting';
+  }
+}
+
+tick();
+setInterval(tick, REFRESH_MS);
+</script>
+</body>
+</html>
