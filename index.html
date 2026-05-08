@@ -95,34 +95,53 @@
 
 <script>
 const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
-const SHEET_REFRESH_MS = 5000;     // refresh active sheet's data
-const TAB_REFRESH_MS = 60000;      // re-discover sheet list
+const SHEET_REFRESH_MS = 2000;     // refresh active sheet's data
+const TAB_REFRESH_MS = 20000;      // re-discover sheet list
 
-let sheetNames = [];
-let activeSheet = null;
+let sheets = [];                   // [{name, gid}, ...]
+let activeGid = null;
 let activeWorkoutIdx = 0;
 let workouts = [];
 let lastSig = null;
 
-// ---------- DISCOVERY: list of sheet tabs from xlsx export ----------
+// ---------- DISCOVERY: pair sheet names (xlsx) with gids (htmlview), both in tab order ----------
 async function fetchSheetList() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx&_=${Date.now()}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('xlsx fetch failed');
-  const buf = await res.arrayBuffer();
+  const stamp = Date.now();
+  const [xlsxRes, htmlRes] = await Promise.all([
+    fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx&_=${stamp}`, { cache: 'no-store' }),
+    fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/htmlview?_=${stamp}`, { cache: 'no-store' }),
+  ]);
+  if (!xlsxRes.ok || !htmlRes.ok) throw new Error('discovery fetch failed');
+
+  // Names from xlsx (in tab order)
+  const buf = await xlsxRes.arrayBuffer();
   const zip = await JSZip.loadAsync(buf);
   const xml = await zip.file('xl/workbook.xml').async('string');
   const names = [];
   const re = /<sheet [^/]*name="([^"]+)"/g;
   let m;
-  while ((m = re.exec(xml))) names.push(m[1]);
-  return names;
+  while ((m = re.exec(xml))) names.push(m[1].trim());
+
+  // Gids from htmlview (unique, in document order = tab order)
+  const html = await htmlRes.text();
+  const seen = new Set();
+  const gids = [];
+  for (const match of html.matchAll(/gid=(\d+)/g)) {
+    const g = match[1];
+    if (!seen.has(g)) { seen.add(g); gids.push(g); }
+  }
+
+  // Zip by index, fall back gracefully
+  const n = Math.min(names.length, gids.length);
+  const out = [];
+  for (let i = 0; i < n; i++) out.push({ name: names[i], gid: gids[i] });
+  return out;
 }
 
-// ---------- DATA: gviz fetch for a single sheet by name ----------
-async function fetchSheetData(name) {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}&_=${Date.now()}`;
-  const res = await fetch(url);
+// ---------- DATA: gviz fetch by gid ----------
+async function fetchSheetData(gid) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}&_=${Date.now()}`;
+  const res = await fetch(url, { cache: 'no-store' });
   const text = await res.text();
   const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
   if (!match) throw new Error('Bad gviz response');
@@ -224,15 +243,15 @@ function el(tag, cls, text) {
 function renderSheetNav() {
   const nav = document.getElementById('sheet-nav');
   nav.innerHTML = '';
-  sheetNames.forEach(name => {
+  sheets.forEach(s => {
     const btn = el('button',
       'shrink-0 pb-3 pt-1 text-xs eyebrow tab-underline transition ' +
-      (name === activeSheet ? 'text-ink active' : 'text-muted hover:text-ink'),
-      name
+      (s.gid === activeGid ? 'text-ink active' : 'text-muted hover:text-ink'),
+      s.name
     );
     btn.onclick = () => {
-      if (activeSheet === name) return;
-      activeSheet = name;
+      if (activeGid === s.gid) return;
+      activeGid = s.gid;
       activeWorkoutIdx = 0;
       lastSig = null;
       workouts = [];
@@ -329,7 +348,7 @@ function render() {
   root.innerHTML = '';
   root.classList.remove('fade-in'); void root.offsetWidth; root.classList.add('fade-in');
 
-  if (!activeSheet) {
+  if (!activeGid && activeGid !== '0') {
     root.appendChild(el('div', 'text-muted py-16 text-center text-sm', 'Loading sessions…'));
     return;
   }
@@ -340,9 +359,10 @@ function render() {
     return;
   }
 
+  const activeSheet = sheets.find(s => s.gid === activeGid);
   const title = el('div', 'mb-10');
   if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-2', w.day));
-  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-ink leading-none', w.date || activeSheet));
+  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-ink leading-none', w.date || (activeSheet ? activeSheet.name : '')));
   root.appendChild(title);
 
   w.sections.forEach(sec => {
@@ -357,9 +377,9 @@ function render() {
 
 // ---------- TICKS ----------
 async function tickData() {
-  if (!activeSheet) return;
+  if (activeGid == null) return;
   try {
-    const data = await fetchSheetData(activeSheet);
+    const data = await fetchSheetData(activeGid);
     const sig = data.sig || JSON.stringify(data.table.rows).length;
     if (sig !== lastSig) {
       lastSig = sig;
@@ -377,11 +397,12 @@ async function tickData() {
 
 async function tickTabs() {
   try {
-    const names = await fetchSheetList();
-    const changed = JSON.stringify(names) !== JSON.stringify(sheetNames);
-    sheetNames = names;
-    if (!activeSheet || !sheetNames.includes(activeSheet)) {
-      activeSheet = sheetNames[0] || null;
+    const list = await fetchSheetList();
+    const changed = JSON.stringify(list) !== JSON.stringify(sheets);
+    sheets = list;
+    const stillThere = sheets.some(s => s.gid === activeGid);
+    if (!stillThere) {
+      activeGid = sheets[0] ? sheets[0].gid : null;
       activeWorkoutIdx = 0;
       lastSig = null;
       workouts = [];
