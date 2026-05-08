@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Resilient Body — Workout</title>
+<link rel="icon" type="image/x-icon" href="https://images.squarespace-cdn.com/content/v1/5fdcfb6c60f802052c68ecca/1276f51a-25ac-4f31-b89d-c0eede836659/favicon.ico" />
+<meta name="description" content="Live workout display for Resilient Body training sessions." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet" />
@@ -59,17 +61,23 @@
 </head>
 <body class="min-h-screen">
 
-<div id="app" class="max-w-[1400px] mx-auto px-8 lg:px-14 py-10">
-  <header class="flex items-center justify-between mb-10">
-    <div class="flex items-center gap-3">
-      <div class="w-1.5 h-1.5 rounded-full bg-ink"></div>
-      <div class="eyebrow text-ink">Resilient Body</div>
-    </div>
-    <div class="flex items-center gap-3 text-muted text-xs">
+<!-- Brand hero band -->
+<div class="bg-ink">
+  <div class="max-w-[1400px] mx-auto px-8 lg:px-14 py-7 flex items-center justify-between">
+    <a href="https://www.resilientbody.us/" target="_blank" rel="noopener" class="flex items-center gap-5">
+      <img src="https://images.squarespace-cdn.com/content/v1/5fdcfb6c60f802052c68ecca/68c84c43-5fc9-42e0-bacc-25f22d102342/Resilient_Body_Branding_Stacked_Logo_White.png?format=300w"
+           alt="Resilient Body"
+           class="h-14 md:h-16 w-auto" />
+      <span class="hidden sm:block eyebrow text-paper/70 border-l border-paper/20 pl-5">Intelligent, individualized strength</span>
+    </a>
+    <div class="flex items-center gap-3 text-paper/70 text-xs">
       <span class="live-dot"></span>
       <span class="eyebrow" id="status">Live</span>
     </div>
-  </header>
+  </div>
+</div>
+
+<div id="app" class="max-w-[1400px] mx-auto px-8 lg:px-14 py-10">
 
   <!-- Sheet tabs (sessions) -->
   <nav id="sheet-nav" class="flex gap-7 overflow-x-auto scroll-x mb-8 border-b hairline"></nav>
