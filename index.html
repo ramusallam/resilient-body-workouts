@@ -17,11 +17,11 @@
           serif: ['"Cormorant Garamond"', 'Kepler', 'Georgia', 'serif'],
         },
         colors: {
-          ink: '#000000',
-          coal: '#0a0a0a',
-          char: '#141414',
-          line: '#222222',
-          muted: '#8a8a8a',
+          ink: '#0a0a0a',
+          coal: '#1a1a1a',
+          char: '#2a2a2a',
+          line: '#e6e6e6',
+          muted: '#6b6b6b',
           paper: '#ffffff',
           teal: '#218496',
           tealSoft: '#2aa0b4',
@@ -31,11 +31,11 @@
   };
 </script>
 <style>
-  html, body { background: #000; color: #ffffff; }
+  html, body { background: #ffffff; color: #0a0a0a; }
   body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
   .display { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 300; letter-spacing: -0.005em; }
   .eyebrow { letter-spacing: 0.34em; text-transform: uppercase; font-weight: 400; font-size: 0.68rem; }
-  .hairline { border-color: #222222; }
+  .hairline { border-color: #e6e6e6; }
   .scroll-x { scrollbar-width: none; }
   .scroll-x::-webkit-scrollbar { display: none; }
   .live-dot {
@@ -57,8 +57,8 @@
   <!-- Header -->
   <header class="flex items-center justify-between mb-12">
     <div class="flex items-center gap-3">
-      <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
-      <div class="eyebrow text-white/70">Resilient Body</div>
+      <div class="w-1.5 h-1.5 rounded-full bg-ink"></div>
+      <div class="eyebrow text-ink">Resilient Body</div>
     </div>
     <div class="flex items-center gap-3 text-muted text-xs">
       <span class="live-dot"></span>
@@ -233,8 +233,8 @@ function renderDateNav() {
     const btn = el('button',
       'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
       (i === activeIndex
-        ? 'bg-white text-ink border-white'
-        : 'bg-transparent text-muted border-line hover:text-white hover:border-white/40'),
+        ? 'bg-ink text-paper border-ink'
+        : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
       w.date || '—'
     );
     btn.onclick = () => { activeIndex = i; activeSession = null; render(); };
@@ -250,8 +250,8 @@ function renderSessionNav(sessions) {
   const all = el('button',
     'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
     (activeSession === null
-      ? 'bg-teal text-white border-teal'
-      : 'bg-transparent text-muted border-line hover:text-white hover:border-white/40'),
+      ? 'bg-teal text-paper border-teal'
+      : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
     'All Sessions'
   );
   all.onclick = () => { activeSession = null; render(); };
@@ -261,8 +261,8 @@ function renderSessionNav(sessions) {
     const btn = el('button',
       'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
       (activeSession === s
-        ? 'bg-teal text-white border-teal'
-        : 'bg-transparent text-muted border-line hover:text-white hover:border-white/40'),
+        ? 'bg-teal text-paper border-teal'
+        : 'bg-transparent text-muted border-line hover:text-ink hover:border-ink/40'),
       s
     );
     btn.onclick = () => { activeSession = s; render(); };
@@ -271,22 +271,22 @@ function renderSessionNav(sessions) {
 }
 
 function renderSectionHeader(title, subtitle) {
-  const wrap = el('div', 'mb-8');
-  wrap.appendChild(el('div', 'eyebrow text-teal mb-2', title));
+  const wrap = el('div', 'mb-5');
+  wrap.appendChild(el('div', 'eyebrow text-teal mb-1', title));
   if (subtitle) {
-    wrap.appendChild(el('div', 'text-muted text-sm font-light tracking-wide', subtitle));
+    wrap.appendChild(el('div', 'text-muted text-xs font-light tracking-wide', subtitle));
   }
   return wrap;
 }
 
 function renderListSection(sec) {
-  const wrap = el('section', 'mb-16');
+  const wrap = el('section', 'mb-12');
   if (sec.title) wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
-  const list = el('ul', 'space-y-3 border-t hairline pt-6');
-  sec.rows.forEach(r => {
-    const li = el('li', 'flex items-baseline gap-4');
-    const dot = el('span', 'text-teal/70 text-xs', '◆');
-    const name = el('span', 'display text-3xl md:text-4xl text-white', r.name);
+  const list = el('ul', 'border-t hairline');
+  sec.rows.forEach((r, idx) => {
+    const li = el('li', 'flex items-baseline gap-4 py-3 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
+    const dot = el('span', 'text-teal text-xs', '◆');
+    const name = el('span', 'display text-xl md:text-2xl text-ink leading-snug', r.name);
     li.appendChild(dot); li.appendChild(name);
     list.appendChild(li);
   });
@@ -314,27 +314,27 @@ function renderStrengthSection(sec) {
   const colCount = Math.max(visibleClients.length, 1);
 
   if (visibleClients.length) {
-    const head = el('div', 'grid items-end gap-6 py-5 border-b hairline');
-    head.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${colCount}, minmax(140px, 1fr))`;
+    const head = el('div', 'grid items-end gap-6 py-4 border-b hairline');
+    head.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
     head.appendChild(el('div', 'eyebrow text-muted', 'Movement'));
     visibleClients.forEach(c => {
       const cell = el('div', '');
-      cell.appendChild(el('div', 'eyebrow text-white', c.name));
-      if (c.session) cell.appendChild(el('div', 'text-teal/80 text-[10px] tracking-widest mt-1', c.session));
+      cell.appendChild(el('div', 'eyebrow text-ink', c.name));
+      if (c.session) cell.appendChild(el('div', 'text-teal text-[10px] tracking-widest mt-1', c.session));
       head.appendChild(cell);
     });
     grid.appendChild(head);
   }
 
   sec.rows.forEach((r, idx) => {
-    const row = el('div', 'grid items-baseline gap-6 py-6 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
-    row.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${colCount}, minmax(140px, 1fr))`;
-    row.appendChild(el('div', 'display text-3xl md:text-4xl text-white leading-tight', r.name));
+    const row = el('div', 'grid items-baseline gap-6 py-3.5 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
+    row.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
+    row.appendChild(el('div', 'display text-xl md:text-2xl text-ink leading-snug', r.name));
 
     const indices = visibleIdx.length ? visibleIdx.map(v => v.i) : [...Array(Math.max(r.notes.length, 1)).keys()];
     indices.forEach(i => {
       const note = (r.notes[i] || '').trim();
-      const cell = el('div', 'text-white/90 text-base font-light leading-snug whitespace-pre-line');
+      const cell = el('div', 'text-ink/80 text-sm font-light leading-snug whitespace-pre-line');
       if (note) {
         cell.textContent = note;
       } else {
@@ -350,9 +350,9 @@ function renderStrengthSection(sec) {
 }
 
 function renderFinisher(sec) {
-  const wrap = el('section', 'mt-20 mb-8 rounded-2xl border border-teal/40 bg-gradient-to-br from-teal/10 to-transparent p-10 text-center');
-  wrap.appendChild(el('div', 'eyebrow text-teal mb-4', 'Finisher'));
-  wrap.appendChild(el('div', 'display text-4xl md:text-5xl text-white leading-tight', sec.body || ''));
+  const wrap = el('section', 'mt-12 mb-8 rounded-xl border border-teal/40 bg-teal/5 p-7 text-center');
+  wrap.appendChild(el('div', 'eyebrow text-teal mb-3', 'Finisher'));
+  wrap.appendChild(el('div', 'display text-2xl md:text-3xl text-ink leading-snug', sec.body || ''));
   return wrap;
 }
 
@@ -373,9 +373,9 @@ function render() {
   if (activeSession && !sessions.includes(activeSession)) activeSession = null;
   renderSessionNav(sessions);
 
-  const title = el('div', 'mb-14');
-  if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-3', w.day));
-  title.appendChild(el('h1', 'display text-7xl md:text-8xl text-white leading-none', w.date || ''));
+  const title = el('div', 'mb-10');
+  if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-2', w.day));
+  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-ink leading-none', w.date || ''));
   root.appendChild(title);
 
   w.sections.forEach(sec => {
