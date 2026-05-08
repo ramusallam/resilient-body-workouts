@@ -20,25 +20,25 @@
           serif: ['"Cormorant Garamond"', 'Kepler', 'Georgia', 'serif'],
         },
         colors: {
-          ink: '#000000',
-          coal: '#0e0e0e',
-          char: '#161616',
-          line: '#2a2a2a',
-          muted: '#a0a0a0',
-          paper: '#f4f3ef',
+          ink: '#1a1a1a',
+          coal: '#222222',
+          char: '#2a2a2a',
+          line: '#3a3a3a',
+          muted: '#b3b3b3',
+          paper: '#f5f3ee',
           teal: '#218496',
-          tealSoft: '#3aafc2',
+          tealSoft: '#46b9cc',
         },
       },
     },
   };
 </script>
 <style>
-  html, body { background: #0e0e0e; color: #f4f3ef; }
+  html, body { background: #1c1c1c; color: #f5f3ee; }
   body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
   .display { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 300; letter-spacing: -0.005em; }
   .eyebrow { letter-spacing: 0.34em; text-transform: uppercase; font-weight: 400; font-size: 0.72rem; }
-  .hairline { border-color: #2a2a2a; }
+  .hairline { border-color: #3a3a3a; }
   .scroll-x { scrollbar-width: none; }
   .scroll-x::-webkit-scrollbar { display: none; }
   .live-dot {
@@ -95,7 +95,7 @@
 
 <script>
 const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
-const SHEET_REFRESH_MS = 2000;     // refresh active sheet's data
+const SHEET_REFRESH_MS = 1000;     // refresh active sheet's data
 const TAB_REFRESH_MS = 20000;      // re-discover sheet list
 
 let sheets = [];                   // [{name, gid}, ...]
