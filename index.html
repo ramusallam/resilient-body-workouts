@@ -6,45 +6,46 @@
 <title>Resilient Body — Workout</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bodoni+Moda:wght@400;500;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
     theme: {
       extend: {
         fontFamily: {
-          sans: ['Inter', 'system-ui', 'sans-serif'],
-          serif: ['"Bodoni Moda"', 'Georgia', 'serif'],
+          sans: ['Inter', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          serif: ['"Cormorant Garamond"', 'Kepler', 'Georgia', 'serif'],
         },
         colors: {
-          ink: '#0a0a0a',
-          coal: '#141414',
-          char: '#1c1c1c',
-          line: '#2a2a2a',
-          ash: '#7a7a7a',
-          cream: '#f5f1ea',
-          gold: '#c9a55c',
+          ink: '#000000',
+          coal: '#0a0a0a',
+          char: '#141414',
+          line: '#222222',
+          muted: '#8a8a8a',
+          paper: '#ffffff',
+          teal: '#218496',
+          tealSoft: '#2aa0b4',
         },
       },
     },
   };
 </script>
 <style>
-  html, body { background: #0a0a0a; color: #f5f1ea; }
-  body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-  .display { font-family: 'Bodoni Moda', Georgia, serif; letter-spacing: -0.01em; }
-  .eyebrow { letter-spacing: 0.32em; text-transform: uppercase; font-weight: 500; font-size: 0.7rem; }
-  .hairline { border-color: #2a2a2a; }
+  html, body { background: #000; color: #ffffff; }
+  body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
+  .display { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 300; letter-spacing: -0.005em; }
+  .eyebrow { letter-spacing: 0.34em; text-transform: uppercase; font-weight: 400; font-size: 0.68rem; }
+  .hairline { border-color: #222222; }
   .scroll-x { scrollbar-width: none; }
   .scroll-x::-webkit-scrollbar { display: none; }
   .live-dot {
-    width: 8px; height: 8px; border-radius: 999px; background: #4ade80;
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); animation: pulse 2s infinite;
+    width: 7px; height: 7px; border-radius: 999px; background: #218496;
+    box-shadow: 0 0 0 0 rgba(33, 132, 150, 0.6); animation: pulse 2.4s infinite;
   }
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); }
-    70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(33, 132, 150, 0.55); }
+    70% { box-shadow: 0 0 0 9px rgba(33, 132, 150, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(33, 132, 150, 0); }
   }
   .fade-in { animation: fade 0.35s ease-out; }
   @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -56,23 +57,26 @@
   <!-- Header -->
   <header class="flex items-center justify-between mb-12">
     <div class="flex items-center gap-3">
-      <div class="w-2 h-2 rounded-full bg-cream/80"></div>
-      <div class="eyebrow text-cream/70">Resilient Body</div>
+      <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+      <div class="eyebrow text-white/70">Resilient Body</div>
     </div>
-    <div class="flex items-center gap-3 text-ash text-xs">
+    <div class="flex items-center gap-3 text-muted text-xs">
       <span class="live-dot"></span>
       <span class="eyebrow" id="status">Live</span>
     </div>
   </header>
 
   <!-- Date pills -->
-  <nav id="date-nav" class="flex gap-2 overflow-x-auto scroll-x mb-10 pb-1"></nav>
+  <nav id="date-nav" class="flex gap-2 overflow-x-auto scroll-x mb-6 pb-1"></nav>
+
+  <!-- Session tabs -->
+  <nav id="session-nav" class="flex gap-2 overflow-x-auto scroll-x mb-10 pb-1"></nav>
 
   <!-- Main content -->
   <main id="content" class="fade-in"></main>
 
   <!-- Footer -->
-  <footer class="mt-24 pt-8 border-t hairline flex items-center justify-between text-ash text-xs">
+  <footer class="mt-24 pt-8 border-t hairline flex items-center justify-between text-muted text-xs">
     <span class="eyebrow">Resilient Body · 2025</span>
     <span id="last-updated"></span>
   </footer>
@@ -83,6 +87,7 @@ const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
 const REFRESH_MS = 5000;
 
 let activeIndex = 0;
+let activeSession = null;
 let workouts = [];
 let lastSig = null;
 
@@ -113,6 +118,18 @@ const DATE_RE = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
 const DAY_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i;
 const SECTION_RE = /^(WARM[-\s]?UP|STRENGTH BLOCK|CONDITIONING|MOBILITY|COOL[-\s]?DOWN|CORE|ACCESSORY|MAIN|SECONDARY)\b/i;
 const FINISHER_RE = /^FINISHER\b/i;
+const SESSION_TAG_RE = /\(\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*\)/i;
+
+function parseClientName(raw) {
+  if (!raw) return { name: '', session: null };
+  const m = raw.match(SESSION_TAG_RE);
+  if (m) {
+    const session = m[1].replace(/\s+/g, '').toLowerCase();
+    const name = raw.replace(SESSION_TAG_RE, '').trim();
+    return { name, session };
+  }
+  return { name: raw, session: null };
+}
 
 function parseWorkouts(rows) {
   const workouts = [];
@@ -120,6 +137,9 @@ function parseWorkouts(rows) {
 
   function commitSection(w) {
     if (w._section) {
+      if (w._section.type === 'strength' && w._section.clients) {
+        w._section.clients = w._section.clients.map(parseClientName);
+      }
       w.sections.push(w._section);
       w._section = null;
     }
@@ -181,14 +201,22 @@ function parseWorkouts(rows) {
       continue;
     }
 
-    if (sec.type === 'strength') {
-      sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
-    } else {
-      sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
-    }
+    sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
   }
   commit();
   return workouts.filter(w => w.sections.length || w.day);
+}
+
+function sessionsFromWorkout(w) {
+  const set = new Set();
+  for (const sec of w.sections) {
+    if (sec.type === 'strength' && sec.clients) {
+      for (const c of sec.clients) {
+        if (c.session) set.add(c.session);
+      }
+    }
+  }
+  return Array.from(set);
 }
 
 function el(tag, cls, text) {
@@ -205,20 +233,48 @@ function renderDateNav() {
     const btn = el('button',
       'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
       (i === activeIndex
-        ? 'bg-cream text-ink border-cream'
-        : 'bg-transparent text-ash border-line hover:text-cream hover:border-cream/50'),
+        ? 'bg-white text-ink border-white'
+        : 'bg-transparent text-muted border-line hover:text-white hover:border-white/40'),
       w.date || '—'
     );
-    btn.onclick = () => { activeIndex = i; render(); };
+    btn.onclick = () => { activeIndex = i; activeSession = null; render(); };
+    nav.appendChild(btn);
+  });
+}
+
+function renderSessionNav(sessions) {
+  const nav = document.getElementById('session-nav');
+  nav.innerHTML = '';
+  if (sessions.length === 0) return;
+
+  const all = el('button',
+    'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
+    (activeSession === null
+      ? 'bg-teal text-white border-teal'
+      : 'bg-transparent text-muted border-line hover:text-white hover:border-white/40'),
+    'All Sessions'
+  );
+  all.onclick = () => { activeSession = null; render(); };
+  nav.appendChild(all);
+
+  sessions.forEach(s => {
+    const btn = el('button',
+      'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
+      (activeSession === s
+        ? 'bg-teal text-white border-teal'
+        : 'bg-transparent text-muted border-line hover:text-white hover:border-white/40'),
+      s
+    );
+    btn.onclick = () => { activeSession = s; render(); };
     nav.appendChild(btn);
   });
 }
 
 function renderSectionHeader(title, subtitle) {
   const wrap = el('div', 'mb-8');
-  wrap.appendChild(el('div', 'eyebrow text-gold mb-2', title));
+  wrap.appendChild(el('div', 'eyebrow text-teal mb-2', title));
   if (subtitle) {
-    wrap.appendChild(el('div', 'text-ash text-sm font-light tracking-wide', subtitle));
+    wrap.appendChild(el('div', 'text-muted text-sm font-light tracking-wide', subtitle));
   }
   return wrap;
 }
@@ -229,8 +285,8 @@ function renderListSection(sec) {
   const list = el('ul', 'space-y-3 border-t hairline pt-6');
   sec.rows.forEach(r => {
     const li = el('li', 'flex items-baseline gap-4');
-    const dot = el('span', 'text-gold/60 text-xs mt-1', '◆');
-    const name = el('span', 'display text-2xl md:text-3xl font-light text-cream', r.name);
+    const dot = el('span', 'text-teal/70 text-xs', '◆');
+    const name = el('span', 'display text-3xl md:text-4xl text-white', r.name);
     li.appendChild(dot); li.appendChild(name);
     list.appendChild(li);
   });
@@ -242,35 +298,50 @@ function renderStrengthSection(sec) {
   const wrap = el('section', 'mb-16');
   wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
 
-  const clients = sec.clients || [];
+  const allClients = sec.clients || [];
+  const visibleIdx = allClients
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => activeSession === null || c.session === activeSession);
+  const visibleClients = visibleIdx.map(v => v.c);
+
+  if (visibleClients.length === 0 && allClients.length > 0) {
+    const empty = el('div', 'border-t hairline pt-8 text-muted text-sm', 'No clients in this session for this block.');
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
   const grid = el('div', 'border-t hairline');
+  const colCount = Math.max(visibleClients.length, 1);
 
-  // Header row
-  const head = el('div', 'grid items-end gap-6 py-5 border-b hairline');
-  head.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${clients.length || 1}, minmax(140px, 1fr))`;
-  head.appendChild(el('div', 'eyebrow text-ash', 'Movement'));
-  clients.forEach(c => {
-    head.appendChild(el('div', 'eyebrow text-cream', c));
-  });
-  if (clients.length) grid.appendChild(head);
+  if (visibleClients.length) {
+    const head = el('div', 'grid items-end gap-6 py-5 border-b hairline');
+    head.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${colCount}, minmax(140px, 1fr))`;
+    head.appendChild(el('div', 'eyebrow text-muted', 'Movement'));
+    visibleClients.forEach(c => {
+      const cell = el('div', '');
+      cell.appendChild(el('div', 'eyebrow text-white', c.name));
+      if (c.session) cell.appendChild(el('div', 'text-teal/80 text-[10px] tracking-widest mt-1', c.session));
+      head.appendChild(cell);
+    });
+    grid.appendChild(head);
+  }
 
-  // Rows
   sec.rows.forEach((r, idx) => {
     const row = el('div', 'grid items-baseline gap-6 py-6 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
-    row.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${Math.max(clients.length, 1)}, minmax(140px, 1fr))`;
-    row.appendChild(el('div', 'display text-2xl md:text-3xl font-light text-cream leading-tight', r.name));
-    const colCount = Math.max(clients.length, r.notes.length);
-    for (let i = 0; i < colCount; i++) {
+    row.style.gridTemplateColumns = `minmax(220px, 1.6fr) repeat(${colCount}, minmax(140px, 1fr))`;
+    row.appendChild(el('div', 'display text-3xl md:text-4xl text-white leading-tight', r.name));
+
+    const indices = visibleIdx.length ? visibleIdx.map(v => v.i) : [...Array(Math.max(r.notes.length, 1)).keys()];
+    indices.forEach(i => {
       const note = (r.notes[i] || '').trim();
-      const cell = el('div', 'text-cream/85 text-base font-light leading-snug whitespace-pre-line');
+      const cell = el('div', 'text-white/90 text-base font-light leading-snug whitespace-pre-line');
       if (note) {
         cell.textContent = note;
       } else {
-        const dash = el('span', 'text-ash/40', '—');
-        cell.appendChild(dash);
+        cell.appendChild(el('span', 'text-muted/40', '—'));
       }
       row.appendChild(cell);
-    }
+    });
     grid.appendChild(row);
   });
 
@@ -279,9 +350,9 @@ function renderStrengthSection(sec) {
 }
 
 function renderFinisher(sec) {
-  const wrap = el('section', 'mt-20 mb-8 rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/10 to-transparent p-10 text-center');
-  wrap.appendChild(el('div', 'eyebrow text-gold mb-4', 'Finisher'));
-  wrap.appendChild(el('div', 'display text-3xl md:text-4xl font-light text-cream leading-tight', sec.body || ''));
+  const wrap = el('section', 'mt-20 mb-8 rounded-2xl border border-teal/40 bg-gradient-to-br from-teal/10 to-transparent p-10 text-center');
+  wrap.appendChild(el('div', 'eyebrow text-teal mb-4', 'Finisher'));
+  wrap.appendChild(el('div', 'display text-4xl md:text-5xl text-white leading-tight', sec.body || ''));
   return wrap;
 }
 
@@ -293,14 +364,18 @@ function render() {
 
   const w = workouts[activeIndex];
   if (!w) {
-    root.appendChild(el('div', 'text-ash py-16 text-center', 'Loading…'));
+    document.getElementById('session-nav').innerHTML = '';
+    root.appendChild(el('div', 'text-muted py-16 text-center', 'Loading…'));
     return;
   }
 
-  // Title block
+  const sessions = sessionsFromWorkout(w);
+  if (activeSession && !sessions.includes(activeSession)) activeSession = null;
+  renderSessionNav(sessions);
+
   const title = el('div', 'mb-14');
-  if (w.day) title.appendChild(el('div', 'eyebrow text-ash mb-3', w.day));
-  title.appendChild(el('h1', 'display text-6xl md:text-7xl font-light text-cream leading-none', w.date || ''));
+  if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-3', w.day));
+  title.appendChild(el('h1', 'display text-7xl md:text-8xl text-white leading-none', w.date || ''));
   root.appendChild(title);
 
   w.sections.forEach(sec => {
