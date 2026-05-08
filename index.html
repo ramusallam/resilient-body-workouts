@@ -57,6 +57,26 @@
     content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
     height: 2px; background: #218496;
   }
+  .editable {
+    outline: none;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin: -2px -6px;
+    transition: background 0.15s, box-shadow 0.15s;
+    cursor: text;
+  }
+  .editable:hover { background: rgba(245,243,238,0.05); }
+  .editable:focus {
+    background: rgba(70,185,204,0.08);
+    box-shadow: inset 0 0 0 1px #46b9cc;
+  }
+  .saving::after {
+    content: '';
+    display: inline-block; width: 6px; height: 6px; margin-left: 6px;
+    border-radius: 999px; background: #46b9cc; opacity: 0.7;
+    animation: pulse 1s infinite;
+  }
+  .save-error { box-shadow: inset 0 0 0 1px #c0392b !important; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -70,9 +90,12 @@
            class="h-14 md:h-16 w-auto" />
       <span class="hidden sm:block eyebrow text-paper/70 border-l border-paper/20 pl-5">Intelligent, individualized strength</span>
     </a>
-    <div class="flex items-center gap-3 text-paper/70 text-xs">
-      <span class="live-dot"></span>
-      <span class="eyebrow" id="status">Live</span>
+    <div class="flex items-center gap-4 text-paper/70 text-xs">
+      <span id="edit-badge" class="hidden eyebrow text-tealSoft border border-tealSoft/40 rounded-full px-3 py-1">Edit Mode</span>
+      <div class="flex items-center gap-3">
+        <span class="live-dot"></span>
+        <span class="eyebrow" id="status">Live</span>
+      </div>
     </div>
   </div>
 </div>
@@ -94,26 +117,42 @@
 </div>
 
 <script>
-const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
-const SHEET_REFRESH_MS = 1000;     // refresh active sheet's data
-const TAB_REFRESH_MS = 20000;      // re-discover sheet list
+// ---------- CONFIG ----------
+// Paste your Apps Script Web App URL (ends in /exec) and TOKEN here to enable
+// fast reads + write-back. Leave blank to use read-only public-sheet fallback.
+const APPS_SCRIPT_URL = '';
+const WRITE_TOKEN = '';
 
-let sheets = [];                   // [{name, gid}, ...]
+const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
+const SHEET_REFRESH_MS = 1000;
+const TAB_REFRESH_MS = 20000;
+
+// ---------- STATE ----------
+let sheets = [];
 let activeGid = null;
 let activeWorkoutIdx = 0;
 let workouts = [];
 let lastSig = null;
+let isEditing = false;     // pause re-render while a cell is focused
 
-// ---------- DISCOVERY: pair sheet names (xlsx) with gids (htmlview), both in tab order ----------
+const HAS_BACKEND = !!APPS_SCRIPT_URL;
+const CAN_EDIT = HAS_BACKEND && !!WRITE_TOKEN;
+
+// ---------- DISCOVERY: list of sheets ----------
 async function fetchSheetList() {
+  if (HAS_BACKEND) {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=list&_=${Date.now()}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.sheets;
+  }
+  // Fallback: pair xlsx names with htmlview gids in tab order
   const stamp = Date.now();
   const [xlsxRes, htmlRes] = await Promise.all([
     fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=xlsx&_=${stamp}`, { cache: 'no-store' }),
     fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/htmlview?_=${stamp}`, { cache: 'no-store' }),
   ]);
   if (!xlsxRes.ok || !htmlRes.ok) throw new Error('discovery fetch failed');
-
-  // Names from xlsx (in tab order)
   const buf = await xlsxRes.arrayBuffer();
   const zip = await JSZip.loadAsync(buf);
   const xml = await zip.file('xl/workbook.xml').async('string');
@@ -121,8 +160,6 @@ async function fetchSheetList() {
   const re = /<sheet [^/]*name="([^"]+)"/g;
   let m;
   while ((m = re.exec(xml))) names.push(m[1].trim());
-
-  // Gids from htmlview (unique, in document order = tab order)
   const html = await htmlRes.text();
   const seen = new Set();
   const gids = [];
@@ -130,39 +167,58 @@ async function fetchSheetList() {
     const g = match[1];
     if (!seen.has(g)) { seen.add(g); gids.push(g); }
   }
-
-  // Zip by index, fall back gracefully
   const n = Math.min(names.length, gids.length);
   const out = [];
   for (let i = 0; i < n; i++) out.push({ name: names[i], gid: gids[i] });
   return out;
 }
 
-// ---------- DATA: gviz fetch by gid ----------
-async function fetchSheetData(gid) {
+// ---------- DATA: fetch one sheet's rows ----------
+async function fetchSheetRows(gid) {
+  if (HAS_BACKEND) {
+    const res = await fetch(`${APPS_SCRIPT_URL}?action=data&gid=${gid}&_=${Date.now()}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return { rows: data.rows.map(r => r.map(c => String(c == null ? '' : c).trim())), sig: data.sig };
+  }
+  // Fallback: gviz
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}&_=${Date.now()}`;
   const res = await fetch(url, { cache: 'no-store' });
   const text = await res.text();
   const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
   if (!match) throw new Error('Bad gviz response');
-  return JSON.parse(match[1]);
-}
-
-function rowsFromData(data) {
-  const out = [];
+  const data = JSON.parse(match[1]);
+  const rows = [];
   for (const r of (data.table.rows || [])) {
     const cells = (r.c || []).map(c => {
       if (!c) return '';
       const v = c.f != null ? c.f : (c.v != null ? c.v : '');
       return String(v).trim();
     });
-    while (cells.length && cells[cells.length - 1] === '') cells.pop();
-    out.push(cells);
+    rows.push(cells);
   }
-  return out;
+  return { rows, sig: data.sig || String(rows.flat().join('|').length) };
 }
 
-// ---------- PARSE: workouts from rows ----------
+// ---------- WRITE: post a single cell change ----------
+async function saveCell(gid, sheetRow, sheetCol, value) {
+  if (!CAN_EDIT) return { ok: false, error: 'editing not configured' };
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ gid, row: sheetRow, col: sheetCol, value, token: WRITE_TOKEN }),
+      cache: 'no-store',
+    });
+    const data = await res.json();
+    if (data.error) return { ok: false, error: data.error };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ---------- PARSE: workouts from rows (preserves original sheet row index) ----------
 const DATE_RE = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
 const DAY_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i;
 const SECTION_RE = /^(WARM[-\s]?UP|STRENGTH BLOCK|CONDITIONING|MOBILITY|COOL[-\s]?DOWN|CORE|ACCESSORY|MAIN|SECONDARY)\b/i;
@@ -171,36 +227,32 @@ const FINISHER_RE = /^FINISHER\b/i;
 function parseWorkouts(rows) {
   const workouts = [];
   let cur = null;
-
-  function commitSection(w) {
-    if (w._section) { w.sections.push(w._section); w._section = null; }
-  }
-  function commit() {
-    if (cur) { commitSection(cur); workouts.push(cur); cur = null; }
-  }
+  function commitSection(w) { if (w._section) { w.sections.push(w._section); w._section = null; } }
+  function commit() { if (cur) { commitSection(cur); workouts.push(cur); cur = null; } }
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    const sheetRow = i + 1;             // 1-indexed sheet row
     const a = (row[0] || '').trim();
     if (!a && row.every(c => !c)) continue;
 
     if (DATE_RE.test(a)) {
       commit();
-      cur = { date: a, day: '', sections: [], _section: null };
+      cur = { date: a, dateRow: sheetRow, day: '', dayRow: null, sections: [], _section: null };
       continue;
     }
-
-    if (!cur) cur = { date: '', day: '', sections: [], _section: null };
+    if (!cur) cur = { date: '', dateRow: null, day: '', dayRow: null, sections: [], _section: null };
 
     if (!cur.day && (DAY_RE.test(a) || a.includes('—') || a.includes('–'))) {
       cur.day = a;
+      cur.dayRow = sheetRow;
       continue;
     }
 
     if (FINISHER_RE.test(a)) {
       commitSection(cur);
       const text = a.replace(/^FINISHER\s*[:\-—]?\s*/i, '').trim();
-      cur._section = { type: 'finisher', title: 'Finisher', body: text };
+      cur._section = { type: 'finisher', title: 'Finisher', body: text, bodyRow: sheetRow, raw: a };
       commitSection(cur);
       continue;
     }
@@ -212,24 +264,25 @@ function parseWorkouts(rows) {
       const subtitle = (m && m[2] ? m[2] : '').trim();
       cur._section = {
         type: SECTION_RE.test(a) && /STRENGTH|MAIN|ACCESSORY|SECONDARY/i.test(title) ? 'strength' : 'list',
-        title, subtitle, clients: null, rows: [],
+        title, subtitle, bannerRow: sheetRow, raw: a,
+        clients: null, clientsRow: null, rows: [],
       };
       continue;
     }
 
     if (!cur._section) {
-      cur._section = { type: 'list', title: '', subtitle: '', clients: null, rows: [] };
+      cur._section = { type: 'list', title: '', subtitle: '', bannerRow: null, clients: null, clientsRow: null, rows: [] };
     }
-
     const sec = cur._section;
     if (sec.type === 'strength' && sec.clients == null && !a && row.slice(1).some(c => c)) {
       sec.clients = row.slice(1).map(c => c.trim());
+      sec.clientsRow = sheetRow;
       continue;
     }
-    sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()) });
+    sec.rows.push({ name: a, notes: row.slice(1).map(c => (c || '').trim()), sheetRow });
   }
   commit();
-  return workouts.filter(w => w.sections.length || w.day);
+  return workouts.filter(w => w.sections.length || w.day || w.date);
 }
 
 // ---------- RENDER ----------
@@ -238,6 +291,38 @@ function el(tag, cls, text) {
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;
   return e;
+}
+
+// Make a span editable. opts = {row, col, placeholder}
+function makeEditable(span, opts) {
+  if (!CAN_EDIT) return span;
+  span.classList.add('editable');
+  span.setAttribute('contenteditable', 'true');
+  span.spellcheck = false;
+  let original = span.textContent;
+  span.addEventListener('focus', () => { isEditing = true; original = span.textContent; });
+  span.addEventListener('blur', async () => {
+    isEditing = false;
+    const newVal = span.textContent.trim();
+    if (newVal === original.trim()) return;
+    span.classList.add('saving');
+    const res = await saveCell(activeGid, opts.row, opts.col, newVal);
+    span.classList.remove('saving');
+    if (!res.ok) {
+      span.classList.add('save-error');
+      console.error('save failed', res.error);
+      setTimeout(() => span.classList.remove('save-error'), 2500);
+      span.textContent = original;
+    } else {
+      // success — let the next poll confirm
+      original = newVal;
+    }
+  });
+  span.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); span.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); span.textContent = original; span.blur(); }
+  });
+  return span;
 }
 
 function renderSheetNav() {
@@ -279,21 +364,25 @@ function renderDateNav() {
   });
 }
 
-function renderSectionHeader(title, subtitle) {
+function renderSectionHeader(title, subtitle, bannerRow) {
   const wrap = el('div', 'mb-5');
-  wrap.appendChild(el('div', 'eyebrow text-tealSoft mb-1', title));
+  const titleEl = el('div', 'eyebrow text-tealSoft mb-1', title);
+  if (bannerRow) makeEditable(titleEl, { row: bannerRow, col: 1 });
+  wrap.appendChild(titleEl);
   if (subtitle) wrap.appendChild(el('div', 'text-muted text-xs font-light tracking-wide', subtitle));
   return wrap;
 }
 
 function renderListSection(sec) {
   const wrap = el('section', 'mb-12');
-  if (sec.title) wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
+  if (sec.title) wrap.appendChild(renderSectionHeader(sec.title + (sec.subtitle ? ' — ' + sec.subtitle : ''), '', sec.bannerRow));
   const list = el('ul', 'border-t hairline');
   sec.rows.forEach((r, idx) => {
     const li = el('li', 'flex items-baseline gap-4 py-3.5 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
     li.appendChild(el('span', 'text-tealSoft text-xs', '◆'));
-    li.appendChild(el('span', 'display text-xl md:text-2xl text-paper leading-snug', r.name));
+    const nameEl = el('span', 'display text-xl md:text-2xl text-paper leading-snug flex-1', r.name);
+    makeEditable(nameEl, { row: r.sheetRow, col: 1 });
+    li.appendChild(nameEl);
     list.appendChild(li);
   });
   wrap.appendChild(list);
@@ -302,7 +391,7 @@ function renderListSection(sec) {
 
 function renderStrengthSection(sec) {
   const wrap = el('section', 'mb-12');
-  wrap.appendChild(renderSectionHeader(sec.title, sec.subtitle));
+  wrap.appendChild(renderSectionHeader(sec.title + (sec.subtitle ? ' — ' + sec.subtitle : ''), '', sec.bannerRow));
 
   const clients = sec.clients || [];
   const grid = el('div', 'border-t hairline');
@@ -312,19 +401,25 @@ function renderStrengthSection(sec) {
     const head = el('div', 'grid items-end gap-6 py-4 border-b hairline');
     head.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
     head.appendChild(el('div', 'eyebrow text-muted', 'Movement'));
-    clients.forEach(c => head.appendChild(el('div', 'eyebrow text-paper', c)));
+    clients.forEach((c, ci) => {
+      const cell = el('div', 'eyebrow text-paper', c);
+      makeEditable(cell, { row: sec.clientsRow, col: ci + 2 });
+      head.appendChild(cell);
+    });
     grid.appendChild(head);
   }
 
   sec.rows.forEach((r, idx) => {
     const row = el('div', 'grid items-baseline gap-6 py-4 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
     row.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
-    row.appendChild(el('div', 'display text-xl md:text-2xl text-paper leading-snug', r.name));
+    const nameEl = el('div', 'display text-xl md:text-2xl text-paper leading-snug', r.name);
+    makeEditable(nameEl, { row: r.sheetRow, col: 1 });
+    row.appendChild(nameEl);
     for (let i = 0; i < colCount; i++) {
       const note = (r.notes[i] || '').trim();
-      const cell = el('div', 'text-paper/90 text-sm font-light leading-snug whitespace-pre-line');
-      if (note) cell.textContent = note;
-      else cell.appendChild(el('span', 'text-muted/40', '—'));
+      const cell = el('div', 'text-paper/90 text-sm font-light leading-snug whitespace-pre-line min-h-[1.25rem]');
+      cell.textContent = note || '';
+      makeEditable(cell, { row: r.sheetRow, col: i + 2 });
       row.appendChild(cell);
     }
     grid.appendChild(row);
@@ -337,13 +432,18 @@ function renderStrengthSection(sec) {
 function renderFinisher(sec) {
   const wrap = el('section', 'mt-12 mb-8 rounded-xl border border-teal/50 bg-teal/10 p-7 text-center');
   wrap.appendChild(el('div', 'eyebrow text-tealSoft mb-3', 'Finisher'));
-  wrap.appendChild(el('div', 'display text-2xl md:text-3xl text-paper leading-snug', sec.body || ''));
+  const body = el('div', 'display text-2xl md:text-3xl text-paper leading-snug', sec.body || '');
+  if (sec.bodyRow) makeEditable(body, { row: sec.bodyRow, col: 1 });
+  wrap.appendChild(body);
   return wrap;
 }
 
 function render() {
+  if (isEditing) return;        // never blow away an in-progress edit
   renderSheetNav();
   renderDateNav();
+  document.getElementById('edit-badge').classList.toggle('hidden', !CAN_EDIT);
+
   const root = document.getElementById('content');
   root.innerHTML = '';
   root.classList.remove('fade-in'); void root.offsetWidth; root.classList.add('fade-in');
@@ -361,8 +461,14 @@ function render() {
 
   const activeSheet = sheets.find(s => s.gid === activeGid);
   const title = el('div', 'mb-10');
-  if (w.day) title.appendChild(el('div', 'eyebrow text-muted mb-2', w.day));
-  title.appendChild(el('h1', 'display text-5xl md:text-6xl text-paper leading-none', w.date || (activeSheet ? activeSheet.name : '')));
+  if (w.day) {
+    const dayEl = el('div', 'eyebrow text-muted mb-2', w.day);
+    if (w.dayRow) makeEditable(dayEl, { row: w.dayRow, col: 1 });
+    title.appendChild(dayEl);
+  }
+  const dateEl = el('h1', 'display text-5xl md:text-6xl text-paper leading-none', w.date || (activeSheet ? activeSheet.name : ''));
+  if (w.dateRow) makeEditable(dateEl, { row: w.dateRow, col: 1 });
+  title.appendChild(dateEl);
   root.appendChild(title);
 
   w.sections.forEach(sec => {
@@ -378,12 +484,11 @@ function render() {
 // ---------- TICKS ----------
 async function tickData() {
   if (activeGid == null) return;
+  if (isEditing) return;
   try {
-    const data = await fetchSheetData(activeGid);
-    const sig = data.sig || JSON.stringify(data.table.rows).length;
+    const { rows, sig } = await fetchSheetRows(activeGid);
     if (sig !== lastSig) {
       lastSig = sig;
-      const rows = rowsFromData(data);
       workouts = parseWorkouts(rows);
       if (activeWorkoutIdx >= workouts.length) activeWorkoutIdx = 0;
       render();
@@ -407,7 +512,7 @@ async function tickTabs() {
       lastSig = null;
       workouts = [];
     }
-    if (changed) render();
+    if (changed && !isEditing) render();
   } catch (e) {
     console.error('tickTabs', e);
   }
