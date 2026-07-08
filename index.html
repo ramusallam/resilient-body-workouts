@@ -8,7 +8,7 @@
 <meta name="description" content="Live workout display for Resilient Body training sessions." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Roboto+Mono:wght@400;500;700&family=Roboto+Serif:wght@400;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
@@ -16,82 +16,120 @@
     theme: {
       extend: {
         fontFamily: {
-          sans: ['Inter', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
-          serif: ['"Cormorant Garamond"', 'Kepler', 'Georgia', 'serif'],
+          sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          serif: ['"Roboto Serif"', 'Georgia', 'Cambria', 'serif'],
+          mono: ['"Roboto Mono"', 'monospace'],
         },
         colors: {
-          ink: '#1a1a1a',
-          coal: '#222222',
-          char: '#2a2a2a',
-          line: '#3a3a3a',
-          muted: '#b3b3b3',
-          paper: '#f5f3ee',
-          teal: '#218496',
-          tealSoft: '#46b9cc',
+          ink: '#1C1917',
+          coal: '#57534E',
+          muted: '#7C6F5A',
+          line: '#E8E0D2',
+          paper: '#F7F3EE',
+          card: '#ffffff',
+          teal: '#6366F1',
+          tealDeep: '#4F46E5',
+          tealSoft: '#818CF8',
+          tealTint: '#EEF0FF',
         },
       },
     },
   };
 </script>
 <style>
-  html, body { background: #1c1c1c; color: #f5f3ee; }
-  body { font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 300; -webkit-font-smoothing: antialiased; }
-  .display { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 300; letter-spacing: -0.005em; }
-  .eyebrow { letter-spacing: 0.34em; text-transform: uppercase; font-weight: 400; font-size: 0.72rem; }
-  .hairline { border-color: #3a3a3a; }
+  :root {
+    --bg: #F7F3EE; --white: #FFFFFF;
+    --ink: #1C1917; --warm: #57534E; --warm-muted: #7C6F5A;
+    --indigo: #6366F1; --indigo-2: #818CF8; --indigo-hover: #4F46E5;
+    --indigo-soft: rgba(99,102,241,0.09); --indigo-line: rgba(99,102,241,0.30);
+    --line: #E8E0D2; --line-soft: #F0EBE3; --red: #EF4444;
+    --sh-sm: 0 1px 2px rgba(17,17,17,0.05), 0 2px 6px rgba(17,17,17,0.08);
+    --sh-md: 0 4px 12px rgba(17,17,17,0.06), 0 2px 4px rgba(17,17,17,0.04);
+    --sh-lg: 0 16px 40px rgba(17,17,17,0.10), 0 4px 12px rgba(17,17,17,0.06);
+  }
+  html, body { background: #F7F3EE; color: #1C1917; }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-weight: 400; -webkit-font-smoothing: antialiased; }
+  .display { font-family: 'Roboto Serif', Georgia, Cambria, serif; font-weight: 700; letter-spacing: -0.01em; }
+  .eyebrow { font-family: 'Roboto Mono', monospace; letter-spacing: 0.25em; text-transform: uppercase; font-weight: 900; font-size: 10px; color: var(--indigo); }
+  .hairline { border-color: #E8E0D2; }
   .scroll-x { scrollbar-width: none; }
   .scroll-x::-webkit-scrollbar { display: none; }
+  .hero-band {
+    background: linear-gradient(150deg, #4F46E5 0%, #6366F1 100%);
+    color: #ffffff;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-band::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 2px);
+    background-size: 40px 40px; pointer-events: none;
+  }
+  .hero-band > * { position: relative; z-index: 1; }
+  .hero-band .eyebrow { color: rgba(255,255,255,0.82); }
   .live-dot {
-    width: 7px; height: 7px; border-radius: 999px; background: #218496;
-    box-shadow: 0 0 0 0 rgba(33, 132, 150, 0.6); animation: pulse 2.4s infinite;
+    width: 7px; height: 7px; border-radius: 999px; background: #FFFFFF;
+    box-shadow: 0 0 0 0 rgba(255,255,255,0.6); animation: pulse 2.4s infinite;
   }
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(33, 132, 150, 0.55); }
-    70% { box-shadow: 0 0 0 9px rgba(33, 132, 150, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(33, 132, 150, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.55); }
+    70% { box-shadow: 0 0 0 9px rgba(255,255,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
   }
-  .fade-in { animation: fade 0.3s ease-out; }
-  @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .fade-in { animation: fade 0.35s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .tab-underline { position: relative; }
   .tab-underline.active::after {
     content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
-    height: 2px; background: #218496;
+    height: 2px; background: linear-gradient(90deg, var(--indigo), var(--indigo-2));
   }
+  .card {
+    background: #ffffff;
+    border: 1px solid #E8E0D2;
+    border-radius: 16px;
+    box-shadow: var(--sh-md);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .card:hover { transform: translateY(-5px); box-shadow: var(--sh-lg); }
   .editable {
     outline: none;
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 2px 6px;
     margin: -2px -6px;
     transition: background 0.15s, box-shadow 0.15s;
     cursor: text;
   }
-  .editable:hover { background: rgba(245,243,238,0.05); }
+  .editable:hover { background: var(--indigo-soft); }
   .editable:focus {
-    background: rgba(70,185,204,0.08);
-    box-shadow: inset 0 0 0 1px #46b9cc;
+    background: var(--indigo-soft);
+    box-shadow: inset 0 0 0 1px var(--indigo);
   }
   .saving::after {
     content: '';
     display: inline-block; width: 6px; height: 6px; margin-left: 6px;
-    border-radius: 999px; background: #46b9cc; opacity: 0.7;
+    border-radius: 999px; background: var(--indigo); opacity: 0.7;
     animation: pulse 1s infinite;
   }
-  .save-error { box-shadow: inset 0 0 0 1px #c0392b !important; }
+  .save-error { box-shadow: inset 0 0 0 1px var(--red) !important; }
+  .tnum { font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body class="min-h-screen">
 
 <!-- Brand hero band -->
-<div class="border-b hairline">
-  <div class="max-w-[1400px] mx-auto px-8 lg:px-14 py-7 flex items-center justify-between">
+<div class="hero-band">
+  <div class="max-w-[1400px] mx-auto px-8 lg:px-14 py-8 flex items-center justify-between">
     <a href="https://www.resilientbody.us/" target="_blank" rel="noopener" class="flex items-center gap-5">
       <img src="https://images.squarespace-cdn.com/content/v1/5fdcfb6c60f802052c68ecca/68c84c43-5fc9-42e0-bacc-25f22d102342/Resilient_Body_Branding_Stacked_Logo_White.png?format=300w"
            alt="Resilient Body"
            class="h-14 md:h-16 w-auto" />
-      <span class="hidden sm:block eyebrow text-paper/70 border-l border-paper/20 pl-5">Intelligent, individualized strength</span>
+      <span class="hidden sm:flex flex-col gap-1 border-l border-white/30 pl-5">
+        <span class="eyebrow">Live Session</span>
+        <span class="display text-lg text-white leading-none">Intelligent, individualized strength</span>
+      </span>
     </a>
-    <div class="flex items-center gap-4 text-paper/70 text-xs">
-      <span id="edit-badge" class="hidden eyebrow text-tealSoft border border-tealSoft/40 rounded-full px-3 py-1">Edit Mode</span>
+    <div class="flex items-center gap-4 text-white/80 text-xs">
+      <span id="edit-badge" class="hidden eyebrow text-white border border-white/50 rounded-full px-3 py-1">Edit Mode</span>
       <div class="flex items-center gap-3">
         <span class="live-dot"></span>
         <span class="eyebrow" id="status">Live</span>
@@ -100,7 +138,7 @@
   </div>
 </div>
 
-<div id="app" class="max-w-[1400px] mx-auto px-8 lg:px-14 py-10">
+<div id="app" class="max-w-[1400px] mx-auto px-8 lg:px-14 py-12">
 
   <!-- Sheet tabs (sessions) -->
   <nav id="sheet-nav" class="flex gap-7 overflow-x-auto scroll-x mb-8 border-b hairline"></nav>
@@ -120,8 +158,8 @@
 // ---------- CONFIG ----------
 // Paste your Apps Script Web App URL (ends in /exec) and TOKEN here to enable
 // fast reads + write-back. Leave blank to use read-only public-sheet fallback.
-const APPS_SCRIPT_URL = '';
-const WRITE_TOKEN = '';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzEN5iD09_e1u2RQSq9QAy8XLYvtnhugU6SPEhReVQHKJUx192mwWSSNxKtJj8OgpNH/exec';
+const WRITE_TOKEN = 'ff64Gl2JvPYtotkkqLyOlmVk9Tsg1oqM6d71U4q1';
 
 const SHEET_ID = '1G09-JKOTXbV6l-fK0TCjnIjEMr7bq-iuAiiQ_3Hgv-s';
 const SHEET_REFRESH_MS = 1000;
@@ -331,7 +369,7 @@ function renderSheetNav() {
   sheets.forEach(s => {
     const btn = el('button',
       'shrink-0 pb-3 pt-1 text-xs eyebrow tab-underline transition ' +
-      (s.gid === activeGid ? 'text-paper active' : 'text-muted hover:text-paper'),
+      (s.gid === activeGid ? 'text-teal active' : 'text-muted hover:text-ink'),
       s.name
     );
     btn.onclick = () => {
@@ -355,8 +393,8 @@ function renderDateNav() {
     const btn = el('button',
       'shrink-0 px-4 py-2 rounded-full border text-xs eyebrow transition ' +
       (i === activeWorkoutIdx
-        ? 'bg-paper text-ink border-paper'
-        : 'bg-transparent text-muted border-line hover:text-paper hover:border-paper/40'),
+        ? 'bg-teal text-white border-teal'
+        : 'bg-white text-muted border-line hover:text-teal hover:border-teal'),
       w.date || '—'
     );
     btn.onclick = () => { activeWorkoutIdx = i; render(); };
@@ -366,7 +404,7 @@ function renderDateNav() {
 
 function renderSectionHeader(title, subtitle, bannerRow) {
   const wrap = el('div', 'mb-5');
-  const titleEl = el('div', 'eyebrow text-tealSoft mb-1', title);
+  const titleEl = el('div', 'eyebrow text-teal mb-1', title);
   if (bannerRow) makeEditable(titleEl, { row: bannerRow, col: 1 });
   wrap.appendChild(titleEl);
   if (subtitle) wrap.appendChild(el('div', 'text-muted text-xs font-light tracking-wide', subtitle));
@@ -374,13 +412,13 @@ function renderSectionHeader(title, subtitle, bannerRow) {
 }
 
 function renderListSection(sec) {
-  const wrap = el('section', 'mb-12');
+  const wrap = el('section', 'mb-10 card p-7');
   if (sec.title) wrap.appendChild(renderSectionHeader(sec.title + (sec.subtitle ? ' — ' + sec.subtitle : ''), '', sec.bannerRow));
   const list = el('ul', 'border-t hairline');
   sec.rows.forEach((r, idx) => {
     const li = el('li', 'flex items-baseline gap-4 py-3.5 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
-    li.appendChild(el('span', 'text-tealSoft text-xs', '◆'));
-    const nameEl = el('span', 'display text-xl md:text-2xl text-paper leading-snug flex-1', r.name);
+    li.appendChild(el('span', 'text-teal text-xs', '◆'));
+    const nameEl = el('span', 'display text-xl md:text-2xl text-ink leading-snug flex-1', r.name);
     makeEditable(nameEl, { row: r.sheetRow, col: 1 });
     li.appendChild(nameEl);
     list.appendChild(li);
@@ -390,7 +428,7 @@ function renderListSection(sec) {
 }
 
 function renderStrengthSection(sec) {
-  const wrap = el('section', 'mb-12');
+  const wrap = el('section', 'mb-10 card p-7');
   wrap.appendChild(renderSectionHeader(sec.title + (sec.subtitle ? ' — ' + sec.subtitle : ''), '', sec.bannerRow));
 
   const clients = sec.clients || [];
@@ -402,7 +440,7 @@ function renderStrengthSection(sec) {
     head.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
     head.appendChild(el('div', 'eyebrow text-muted', 'Movement'));
     clients.forEach((c, ci) => {
-      const cell = el('div', 'eyebrow text-paper', c);
+      const cell = el('div', 'eyebrow text-ink', c);
       makeEditable(cell, { row: sec.clientsRow, col: ci + 2 });
       head.appendChild(cell);
     });
@@ -412,12 +450,12 @@ function renderStrengthSection(sec) {
   sec.rows.forEach((r, idx) => {
     const row = el('div', 'grid items-baseline gap-6 py-4 ' + (idx < sec.rows.length - 1 ? 'border-b hairline' : ''));
     row.style.gridTemplateColumns = `minmax(200px, 1.4fr) repeat(${colCount}, minmax(130px, 1fr))`;
-    const nameEl = el('div', 'display text-xl md:text-2xl text-paper leading-snug', r.name);
+    const nameEl = el('div', 'display text-xl md:text-2xl text-ink leading-snug', r.name);
     makeEditable(nameEl, { row: r.sheetRow, col: 1 });
     row.appendChild(nameEl);
     for (let i = 0; i < colCount; i++) {
       const note = (r.notes[i] || '').trim();
-      const cell = el('div', 'text-paper/90 text-sm font-light leading-snug whitespace-pre-line min-h-[1.25rem]');
+      const cell = el('div', 'text-coal text-sm font-light leading-snug whitespace-pre-line min-h-[1.25rem]');
       cell.textContent = note || '';
       makeEditable(cell, { row: r.sheetRow, col: i + 2 });
       row.appendChild(cell);
@@ -430,9 +468,9 @@ function renderStrengthSection(sec) {
 }
 
 function renderFinisher(sec) {
-  const wrap = el('section', 'mt-12 mb-8 rounded-xl border border-teal/50 bg-teal/10 p-7 text-center');
-  wrap.appendChild(el('div', 'eyebrow text-tealSoft mb-3', 'Finisher'));
-  const body = el('div', 'display text-2xl md:text-3xl text-paper leading-snug', sec.body || '');
+  const wrap = el('section', 'mt-10 mb-8 rounded-2xl border border-teal/30 bg-tealTint p-8 text-center');
+  wrap.appendChild(el('div', 'eyebrow text-teal mb-3', 'Finisher'));
+  const body = el('div', 'display text-2xl md:text-3xl text-tealDeep leading-snug', sec.body || '');
   if (sec.bodyRow) makeEditable(body, { row: sec.bodyRow, col: 1 });
   wrap.appendChild(body);
   return wrap;
@@ -462,11 +500,11 @@ function render() {
   const activeSheet = sheets.find(s => s.gid === activeGid);
   const title = el('div', 'mb-10');
   if (w.day) {
-    const dayEl = el('div', 'eyebrow text-muted mb-2', w.day);
+    const dayEl = el('div', 'eyebrow text-teal mb-2', w.day);
     if (w.dayRow) makeEditable(dayEl, { row: w.dayRow, col: 1 });
     title.appendChild(dayEl);
   }
-  const dateEl = el('h1', 'display text-5xl md:text-6xl text-paper leading-none', w.date || (activeSheet ? activeSheet.name : ''));
+  const dateEl = el('h1', 'display text-5xl md:text-6xl text-ink leading-none tnum', w.date || (activeSheet ? activeSheet.name : ''));
   if (w.dateRow) makeEditable(dateEl, { row: w.dateRow, col: 1 });
   title.appendChild(dateEl);
   root.appendChild(title);

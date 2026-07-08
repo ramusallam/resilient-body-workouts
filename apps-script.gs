@@ -44,8 +44,11 @@ function doGet(e) {
       if (!sheet) return json({ error: 'sheet_not_found' });
       const range = sheet.getDataRange();
       const rows = range.getDisplayValues();
-      // tiny fingerprint so the client can short-circuit unchanged data
-      const sig = rows.length + ':' + rows.flat().join('|').length;
+      // Real content hash so any cell edit (even same-length) triggers a refresh
+      const flat = rows.map(r => r.join('')).join('');
+      const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, flat);
+      const sig = rows.length + ':' + flat.length + ':' +
+        digest.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('').slice(0, 16);
       return json({ rows, sig });
     }
 
